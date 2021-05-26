@@ -19,7 +19,7 @@ public class LoopbackHttpProxyServer {
 
     public static void main(String[] args) {
         System.out.println("start loopback proxy server");
-        HttpProxyServerConfig config = new HttpProxyServerConfig(LoopbackAddressResolverGroup.INSTANCE);
+        HttpProxyServerConfig config = new HttpProxyServerConfig();
         config.setBossGroupThreads(1);
         config.setWorkerGroupThreads(1);
         config.setProxyGroupThreads(1);

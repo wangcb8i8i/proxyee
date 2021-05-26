@@ -1,6 +1,6 @@
 package com.github.monkeywie.proxyee.intercept;
 
-import com.github.monkeywie.proxyee.util.ProtoUtil;
+import com.github.monkeywie.proxyee.server.RequestProto;
 
 /**
  * @Author LiWei
@@ -8,5 +8,5 @@ import com.github.monkeywie.proxyee.util.ProtoUtil;
  * @Date 2019/11/4 9:57
  */
 public interface HttpTunnelIntercept {
-    void handle(ProtoUtil.RequestProto requestProto);
+    void handle(RequestProto requestProto);
 }

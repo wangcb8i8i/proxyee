@@ -14,11 +14,14 @@ public class TunnelProxyInitializer extends ChannelInitializer {
 
     private Channel clientChannel;
     private ProxyHandler proxyHandler;
+    private HttpProxyExceptionHandle httpProxyExceptionHandle;
 
     public TunnelProxyInitializer(Channel clientChannel,
-                                  ProxyHandler proxyHandler) {
+                                  ProxyHandler proxyHandler,
+                                  HttpProxyExceptionHandle httpProxyExceptionHandle) {
         this.clientChannel = clientChannel;
         this.proxyHandler = proxyHandler;
+        this.httpProxyExceptionHandle = httpProxyExceptionHandle;
     }
 
     @Override
@@ -42,9 +45,7 @@ public class TunnelProxyInitializer extends ChannelInitializer {
             public void exceptionCaught(ChannelHandlerContext ctx0, Throwable cause) throws Exception {
                 ctx0.channel().close();
                 clientChannel.close();
-                HttpProxyExceptionHandle exceptionHandle = ((HttpProxyServerHandler) clientChannel.pipeline()
-                        .get("serverHandle")).getExceptionHandle();
-                exceptionHandle.afterCatch(clientChannel, ctx0.channel(), cause);
+                httpProxyExceptionHandle.afterCatch(clientChannel, ctx0.channel(), cause);
             }
         });
     }

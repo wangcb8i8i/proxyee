@@ -1,14 +1,23 @@
 package com.github.monkeywie.proxyee.util;
 
+import com.github.monkeywie.proxyee.server.RequestProto;
+import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 
-import java.io.Serializable;
-import java.util.Objects;
+import java.net.InetSocketAddress;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ProtoUtil {
+
+    public static boolean isSelfRequest(Channel clientChannel, RequestProto requestProto) {
+        InetSocketAddress localSocketAddress = (InetSocketAddress) clientChannel.localAddress();
+        InetSocketAddress remoteSocketAddress = (InetSocketAddress) clientChannel.remoteAddress();
+        String localHostAddress = localSocketAddress.getHostString();
+        String remoteHostString = remoteSocketAddress.getHostString();
+        return localHostAddress.equals(remoteHostString) && localSocketAddress.getPort() == requestProto.getPort();
+    }
 
     public static RequestProto getRequestProto(HttpRequest httpRequest) {
         RequestProto requestProto = new RequestProto();
@@ -52,61 +61,5 @@ public class ProtoUtil {
         requestProto.setPort(port);
         requestProto.setSsl(isSsl);
         return requestProto;
-    }
-
-    public static class RequestProto implements Serializable {
-
-        private static final long serialVersionUID = -6471051659605127698L;
-        private String host;
-        private int port;
-        private boolean ssl;
-
-        public RequestProto() {
-        }
-
-        public RequestProto(String host, int port, boolean ssl) {
-            this.host = host;
-            this.port = port;
-            this.ssl = ssl;
-        }
-
-        public String getHost() {
-            return host;
-        }
-
-        public void setHost(String host) {
-            this.host = host;
-        }
-
-        public int getPort() {
-            return port;
-        }
-
-        public void setPort(int port) {
-            this.port = port;
-        }
-
-        public boolean getSsl() {
-            return ssl;
-        }
-
-        public void setSsl(boolean ssl) {
-            this.ssl = ssl;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            RequestProto that = (RequestProto) o;
-            return port == that.port &&
-                    ssl == that.ssl &&
-                    host.equals(that.host);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(host, port, ssl);
-        }
     }
 }

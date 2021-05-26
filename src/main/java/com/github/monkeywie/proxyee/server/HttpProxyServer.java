@@ -4,8 +4,8 @@ import com.github.monkeywie.proxyee.crt.CertPool;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
-import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.intercept.HttpTunnelIntercept;
+import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipelineInitializer;
 import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -14,7 +14,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -22,29 +21,44 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 
+@Accessors(fluent = true)
 public class HttpProxyServer {
 
     private final static InternalLogger log = InternalLoggerFactory.getInstance(HttpProxyServer.class);
 
-    //http代理隧道握手成功
-    public final static HttpResponseStatus SUCCESS = new HttpResponseStatus(200,
-            "Connection established");
-    public final static HttpResponseStatus UNAUTHORIZED = new HttpResponseStatus(407,
-            "Unauthorized");
 
+    @Setter
     private HttpProxyCACertFactory caCertFactory;
+
+    @Setter
     private HttpProxyServerConfig serverConfig;
-    private HttpProxyInterceptInitializer proxyInterceptInitializer;
-    private HttpTunnelIntercept tunnelIntercept;
+
+    @Setter
+    private ProxyInterceptPipelineInitializer proxyInterceptInitializer;
+
+    @Setter
+    private HttpTunnelIntercept tunnelIntercept = new HttpTunnelIntercept() {
+        @Override
+        public void handle(RequestProto requestProto) {
+            log.trace("tunneled {}", requestProto);
+        }
+    };
+
+    @Setter
     private HttpProxyExceptionHandle httpProxyExceptionHandle;
+
+    @Setter
     private ProxyConfig proxyConfig;
 
     private EventLoopGroup bossGroup;
@@ -88,43 +102,11 @@ public class HttpProxyServer {
             }
         }
         if (proxyInterceptInitializer == null) {
-            proxyInterceptInitializer = new HttpProxyInterceptInitializer();
+            proxyInterceptInitializer = new ProxyInterceptPipelineInitializer();
         }
         if (httpProxyExceptionHandle == null) {
             httpProxyExceptionHandle = new HttpProxyExceptionHandle();
         }
-    }
-
-    public HttpProxyServer serverConfig(HttpProxyServerConfig serverConfig) {
-        this.serverConfig = serverConfig;
-        return this;
-    }
-
-    public HttpProxyServer proxyInterceptInitializer(
-            HttpProxyInterceptInitializer proxyInterceptInitializer) {
-        this.proxyInterceptInitializer = proxyInterceptInitializer;
-        return this;
-    }
-
-    public HttpProxyServer httpProxyExceptionHandle(
-            HttpProxyExceptionHandle httpProxyExceptionHandle) {
-        this.httpProxyExceptionHandle = httpProxyExceptionHandle;
-        return this;
-    }
-
-    public HttpProxyServer proxyConfig(ProxyConfig proxyConfig) {
-        this.proxyConfig = proxyConfig;
-        return this;
-    }
-
-    public HttpProxyServer caCertFactory(HttpProxyCACertFactory caCertFactory) {
-        this.caCertFactory = caCertFactory;
-        return this;
-    }
-
-    public HttpProxyServer tunnelIntercept(HttpTunnelIntercept tunnelIntercept) {
-        this.tunnelIntercept = tunnelIntercept;
-        return this;
     }
 
     public void start(int port) {
@@ -138,6 +120,10 @@ public class HttpProxyServer {
             channelFuture.addListener(future -> {
                 if (future.cause() != null) {
                     httpProxyExceptionHandle.startCatch(future.cause());
+                }
+                if (future.isSuccess()) {
+                    log.debug("proxy server is listening on {}:{}",
+                            Objects.toString(ip, "localhost"), port);
                 }
                 latch.countDown();
             });
@@ -161,7 +147,7 @@ public class HttpProxyServer {
         channelFuture.addListener(start -> {
             if (start.isSuccess()) {
                 future.complete(null);
-                shutdownHook();
+                addShutdownHook();
             } else {
                 future.completeExceptionally(start.cause());
                 close();
@@ -183,6 +169,7 @@ public class HttpProxyServer {
 
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
+                        ch.pipeline().addFirst(new LoggingHandler());
                         ch.pipeline().addLast("httpCodec", new HttpServerCodec());
                         ch.pipeline().addLast("serverHandle",
                                 new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, tunnelIntercept, proxyConfig,
@@ -214,7 +201,7 @@ public class HttpProxyServer {
     /**
      * 注册JVM关闭的钩子以释放资源
      */
-    public void shutdownHook() {
+    public void addShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(this::close, "Server Shutdown Thread"));
     }
 

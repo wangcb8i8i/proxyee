@@ -1,21 +1,20 @@
 package com.github.monkeywie.proxyee.intercept.common;
 
 import com.github.monkeywie.proxyee.crt.CertUtil;
-import com.github.monkeywie.proxyee.intercept.HttpProxyIntercept;
-import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
+import com.github.monkeywie.proxyee.intercept.ProxyInterceptHandler;
+import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipeline;
 import com.github.monkeywie.proxyee.server.HttpProxyCACertFactory;
+import com.github.monkeywie.proxyee.server.RequestProto;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
-import com.github.monkeywie.proxyee.util.ProtoUtil.RequestProto;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.*;
 
-import java.net.InetSocketAddress;
 import java.security.cert.X509Certificate;
 
 /**
  * 处理证书下载页面 http://proxyServerIp:proxyServerPort
  */
-public class CertDownIntercept extends HttpProxyIntercept {
+public class CertDownIntercept implements ProxyInterceptHandler {
 
     private boolean crtFlag = false;
 
@@ -48,16 +47,14 @@ public class CertDownIntercept extends HttpProxyIntercept {
     }
 
     @Override
-    public void beforeRequest(Channel clientChannel, HttpRequest httpRequest,
-                              HttpProxyInterceptPipeline pipeline) throws Exception {
+    public void onRequest(Channel clientChannel, HttpRequest httpRequest,
+                              ProxyInterceptPipeline pipeline) throws Exception  {
         RequestProto requestProto = ProtoUtil.getRequestProto(httpRequest);
         if (requestProto == null) { //bad request
             clientChannel.close();
             return;
         }
-        InetSocketAddress inetSocketAddress = (InetSocketAddress) clientChannel.localAddress();
-        if (requestProto.getHost().equals(inetSocketAddress.getHostString()) &&
-                requestProto.getPort() == inetSocketAddress.getPort()) {
+        if (ProtoUtil.isSelfRequest(clientChannel,requestProto)) {
             crtFlag = true;
             if (httpRequest.uri().matches("^.*/ca.crt.*$")) {  //下载证书
                 HttpResponse httpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
@@ -81,7 +78,7 @@ public class CertDownIntercept extends HttpProxyIntercept {
             } else {  //跳转下载页面
                 HttpResponse httpResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
                         HttpResponseStatus.OK);
-                String html = "<html><body><div style=\"margin-top:100px;text-align:center;\"><a href=\"ca.crt\">ProxyeeRoot ca.crt</a></div></body></html>";
+                String html = "<html><body><div style=\"margin-top:100px;text-align:center;\"><a href=\"ca.crt\">Proxy Server root ca.crt</a></div></body></html>";
                 httpResponse.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/html;charset=utf-8");
                 httpResponse.headers().set(HttpHeaderNames.CONTENT_LENGTH, html.getBytes().length);
                 httpResponse.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
@@ -91,15 +88,15 @@ public class CertDownIntercept extends HttpProxyIntercept {
                 clientChannel.writeAndFlush(httpContent);
             }
         } else {
-            pipeline.beforeRequest(clientChannel, httpRequest);
+            pipeline.onRequest(clientChannel, httpRequest);
         }
     }
 
     @Override
-    public void beforeRequest(Channel clientChannel, HttpContent httpContent,
-                              HttpProxyInterceptPipeline pipeline) throws Exception {
+    public void onRequestContent(Channel clientChannel, HttpContent httpContent,
+                              ProxyInterceptPipeline pipeline) throws Exception {
         if (!crtFlag) {
-            pipeline.beforeRequest(clientChannel, httpContent);
+            pipeline.onRequestContent(clientChannel, httpContent);
         }
     }
 }
