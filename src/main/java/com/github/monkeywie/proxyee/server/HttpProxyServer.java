@@ -47,6 +47,7 @@ public class HttpProxyServer {
         }
         if (serverConfig.isSslSupported()) {
             try {
+                serverConfig.setPacketAggregated(true);
                 serverConfig.setClientSslCtx(
                         SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE)
                                 .build());
@@ -164,8 +165,9 @@ public class HttpProxyServer {
                     protected void initChannel(Channel ch) throws Exception {
                         ch.pipeline().addFirst(new LoggingHandler());
                         ch.pipeline().addLast("httpCodec", new HttpServerCodec());
-//                        ch.pipeline().addLast("compressor", new HttpContentCompressor());
-                        ch.pipeline().addLast("aggregator", new HttpObjectAggregator(1024 * 1024 * 10));
+                        if (serverConfig.isPacketAggregated()) {
+                            ch.pipeline().addLast("aggregator", new HttpObjectAggregator(1024 * 1024 * 10));
+                        }
                         ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(serverConfig));
                     }
                 });

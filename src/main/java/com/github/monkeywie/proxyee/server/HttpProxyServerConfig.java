@@ -32,6 +32,7 @@ public class HttpProxyServerConfig {
     private int workerGroupThreads;
     private int proxyGroupThreads;
     private boolean sslSupported;
+    private boolean packetAggregated;  //HttpMessage 和 HttpContent 是否需要合并
     private ProxyConfig proxyConfig;
     private HttpProxyAcceptHandler httpProxyAcceptHandler;
     private ProxyInterceptPipelineInitializer proxyInterceptInitializer;

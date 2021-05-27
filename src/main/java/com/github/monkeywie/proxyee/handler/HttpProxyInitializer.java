@@ -41,7 +41,9 @@ public class HttpProxyInitializer extends ChannelInitializer {
             ch.pipeline().addLast(sslHandler);
         }
         ch.pipeline().addLast("httpCodec", new HttpClientCodec());
-        ch.pipeline().addLast("aggregator", new HttpObjectAggregator(1024 * 1024 * 10));
+        if (httpProxyServerConfig.isPacketAggregated()) {
+            ch.pipeline().addLast("aggregator", new HttpObjectAggregator(1024 * 1024 * 10));
+        }
         ch.pipeline().addLast("proxyClientHandle", new HttpProxyClientHandler(clientChannel,
                 proxyInterceptPipeline, httpProxyServerConfig.getHttpProxyExceptionHandle()));
     }
