@@ -1,8 +1,11 @@
 package com.github.monkeywie.proxyee.server;
 
+import lombok.Data;
+
 import java.io.Serializable;
 import java.util.Objects;
 
+@Data
 public class RequestProto implements Serializable {
 
     private static final long serialVersionUID = -6471051659605127698L;
@@ -19,29 +22,6 @@ public class RequestProto implements Serializable {
         this.ssl = ssl;
     }
 
-    public String getHost() {
-        return host;
-    }
-
-    public void setHost(String host) {
-        this.host = host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public boolean getSsl() {
-        return ssl;
-    }
-
-    public void setSsl(boolean ssl) {
-        this.ssl = ssl;
-    }
 
     public boolean isDefaultPort() {
         return ssl ? port == 443 : port == 80;

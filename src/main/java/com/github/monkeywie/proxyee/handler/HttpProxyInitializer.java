@@ -35,7 +35,7 @@ public class HttpProxyInitializer extends ChannelInitializer {
     protected void initChannel(Channel ch) throws Exception {
         Optional.ofNullable(httpProxyServerConfig.getProxyConfig()).map(ProxyHandleFactory::build)
                 .ifPresent(ch.pipeline()::addLast);
-        if (requestProto.getSsl()) {
+        if (requestProto.isSsl()) {
             SslHandler sslHandler = httpProxyServerConfig.getClientSslCtx().newHandler(ch.alloc(),
                     requestProto.getHost(), requestProto.getPort());
             ch.pipeline().addLast(sslHandler);

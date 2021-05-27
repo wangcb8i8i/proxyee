@@ -37,6 +37,11 @@ public final class ProxyInterceptPipeline {
         public HandlerEntry(ProxyInterceptHandler proxyInterceptHandler) {
             this(proxyInterceptHandler.getClass().getName(), proxyInterceptHandler);
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     public ProxyInterceptPipeline(ProxyInterceptHandler headProxyInterceptHandler, ProxyInterceptHandler tailProxyInterceptHandler) {
@@ -193,7 +198,8 @@ public final class ProxyInterceptPipeline {
 
     public void onRequest(Channel clientChannel, HttpRequest httpRequest) throws Exception {
         if (pos < this.interceptHandlerList.size()) {
-            this.interceptHandlerList.get(pos++).handler.onRequest(clientChannel, httpRequest, this);
+            HandlerEntry handlerEntry = this.interceptHandlerList.get(pos++);
+            handlerEntry.handler.onRequest(clientChannel, httpRequest, this);
         }
         pos = 0;
     }

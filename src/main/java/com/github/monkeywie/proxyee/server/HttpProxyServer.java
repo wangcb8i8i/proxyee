@@ -47,33 +47,37 @@ public class HttpProxyServer {
         }
         if (serverConfig.isSslSupported()) {
             try {
-                serverConfig.setPacketAggregated(true);
-                serverConfig.setClientSslCtx(
-                        SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE)
-                                .build());
-                ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+                if (serverConfig.getClientSslCtx() == null) {
+                    serverConfig.setClientSslCtx(
+                            SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE)
+                                    .build());
+                }
 
                 //设置根证书以及对应私钥生成器
-                serverConfig.setCaCertFactory(new HttpProxyCACertFactory() {
+                if (serverConfig.getCaCertFactory() == null) {
+                    serverConfig.setCaCertFactory(new HttpProxyCACertFactory() {
 
-                    private X509Certificate caCert;
-                    private PrivateKey caPriKey;
+                        private X509Certificate caCert;
+                        private PrivateKey caPriKey;
 
-                    {
-                        caCert = CertUtil.loadCert(classLoader.getResourceAsStream("ca.crt"));
-                        caPriKey = CertUtil.loadPriKey(classLoader.getResourceAsStream("ca_private.der"));
-                    }
+                        {
+                            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+                            caCert = CertUtil.loadCert(classLoader.getResourceAsStream("ca.crt"));
+                            caPriKey = CertUtil.loadPriKey(classLoader.getResourceAsStream("ca_private.der"));
+                        }
 
-                    @Override
-                    public X509Certificate getCACert() throws Exception {
-                        return caCert;
-                    }
+                        @Override
+                        public X509Certificate getCACert() throws Exception {
+                            return caCert;
+                        }
 
-                    @Override
-                    public PrivateKey getCAPriKey() throws Exception {
-                        return caPriKey;
-                    }
-                });
+                        @Override
+                        public PrivateKey getCAPriKey() throws Exception {
+                            return caPriKey;
+                        }
+                    });
+                }
+
 
                 //读取CA证书使用者信息
                 serverConfig.setIssuer(CertUtil.getSubject(serverConfig.getCaCertFactory().getCACert()));
@@ -87,14 +91,22 @@ public class HttpProxyServer {
                 serverConfig.setServerPriKey(keyPair.getPrivate());
                 serverConfig.setServerPubKey(keyPair.getPublic());
 
-                serverConfig.setTunnelIntercept(new HttpTunnelIntercept() {
-                    @Override
-                    public void handle(RequestProto requestProto) {
-                        log.debug("tunneled {}", requestProto);
-                    }
-                });
-                serverConfig.setProxyInterceptInitializer(new ProxyInterceptPipelineInitializer());
-                serverConfig.setHttpProxyExceptionHandle(new HttpProxyExceptionHandle());
+                if (serverConfig.getTunnelIntercept() == null) {
+                    serverConfig.setTunnelIntercept(new HttpTunnelIntercept() {
+                        @Override
+                        public void handle(RequestProto requestProto) {
+                            log.debug("tunneled {}", requestProto);
+                        }
+                    });
+                }
+
+                if (serverConfig.getProxyInterceptInitializer() == null) {
+                    serverConfig.setProxyInterceptInitializer(new ProxyInterceptPipelineInitializer());
+                }
+
+                if (serverConfig.getHttpProxyExceptionHandle() == null) {
+                    serverConfig.setHttpProxyExceptionHandle(new HttpProxyExceptionHandle());
+                }
             } catch (Exception e) {
                 serverConfig.setSslSupported(false);
                 log.warn("SSL init fail,cause:" + e.getMessage());
