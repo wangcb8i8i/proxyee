@@ -23,7 +23,7 @@ public class LoopbackHttpProxyServer {
         config.setBossGroupThreads(1);
         config.setWorkerGroupThreads(1);
         config.setProxyGroupThreads(1);
-        config.setHandleSsl(false);
+        config.setSslSupported(false);
         new HttpProxyServer()
                 .serverConfig(config)
                 .start(9999);

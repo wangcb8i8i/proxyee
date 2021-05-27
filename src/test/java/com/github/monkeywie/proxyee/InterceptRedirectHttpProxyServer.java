@@ -1,6 +1,5 @@
 package com.github.monkeywie.proxyee;
 
-import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.intercept.ProxyInterceptHandler;
 import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipeline;
 import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipelineInitializer;
@@ -18,16 +17,14 @@ import io.netty.handler.codec.http.*;
 public class InterceptRedirectHttpProxyServer {
     public static void main(String[] args) throws Exception {
         HttpProxyServerConfig config = new HttpProxyServerConfig();
-        config.setHandleSsl(true);
-        new HttpProxyServer()
-                .serverConfig(config)
-                .proxyInterceptInitializer(new ProxyInterceptPipelineInitializer() {
+        config.setSslSupported(true)
+                .setProxyInterceptInitializer(new ProxyInterceptPipelineInitializer() {
                     @Override
-                    public void init( ProxyInterceptPipeline pipeline) {
+                    public void init(ProxyInterceptPipeline pipeline) {
                         pipeline.addLast(new ProxyInterceptHandler() {
                             @Override
                             public void onRequest(Channel clientChannel, HttpRequest httpRequest,
-                                                       ProxyInterceptPipeline pipeline) throws Exception {
+                                                  ProxyInterceptPipeline pipeline) throws Exception {
                                 //匹配到百度首页跳转到淘宝
                                 if (HttpUtil.checkUrl(httpRequest, "^www.baidu.com$")) {
                                     HttpResponse hookResponse = new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
@@ -43,18 +40,9 @@ public class InterceptRedirectHttpProxyServer {
                         });
                     }
                 })
-                .httpProxyExceptionHandle(new HttpProxyExceptionHandle() {
-                    @Override
-                    public void beforeCatch(Channel clientChannel, Throwable cause) throws Exception {
-                        cause.printStackTrace();
-                    }
-
-                    @Override
-                    public void afterCatch(Channel clientChannel, Channel proxyChannel, Throwable cause)
-                            throws Exception {
-                        cause.printStackTrace();
-                    }
-                })
+                ;
+        new HttpProxyServer()
+                .serverConfig(config)
                 .start(9999);
     }
 }

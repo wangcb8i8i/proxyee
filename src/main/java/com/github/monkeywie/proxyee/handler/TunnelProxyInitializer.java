@@ -1,11 +1,13 @@
 package com.github.monkeywie.proxyee.handler;
 
-import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
+import com.github.monkeywie.proxyee.proxy.ProxyHandleFactory;
+import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
-import io.netty.handler.proxy.ProxyHandler;
+
+import java.util.Optional;
 
 /**
  * http代理隧道，转发原始报文
@@ -13,22 +15,16 @@ import io.netty.handler.proxy.ProxyHandler;
 public class TunnelProxyInitializer extends ChannelInitializer {
 
     private Channel clientChannel;
-    private ProxyHandler proxyHandler;
-    private HttpProxyExceptionHandle httpProxyExceptionHandle;
-
-    public TunnelProxyInitializer(Channel clientChannel,
-                                  ProxyHandler proxyHandler,
-                                  HttpProxyExceptionHandle httpProxyExceptionHandle) {
+    private HttpProxyServerConfig httpProxyServerConfig;
+    public TunnelProxyInitializer(Channel clientChannel,HttpProxyServerConfig httpProxyServerConfig) {
         this.clientChannel = clientChannel;
-        this.proxyHandler = proxyHandler;
-        this.httpProxyExceptionHandle = httpProxyExceptionHandle;
+        this.httpProxyServerConfig = httpProxyServerConfig;
     }
 
     @Override
     protected void initChannel(Channel ch) throws Exception {
-        if (proxyHandler != null) {
-            ch.pipeline().addLast(proxyHandler);
-        }
+        Optional.ofNullable(httpProxyServerConfig.getProxyConfig()).map(ProxyHandleFactory::build)
+                .ifPresent(ch.pipeline()::addLast);
         ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
             @Override
             public void channelRead(ChannelHandlerContext ctx0, Object msg0) throws Exception {
@@ -45,7 +41,7 @@ public class TunnelProxyInitializer extends ChannelInitializer {
             public void exceptionCaught(ChannelHandlerContext ctx0, Throwable cause) throws Exception {
                 ctx0.channel().close();
                 clientChannel.close();
-                httpProxyExceptionHandle.afterCatch(clientChannel, ctx0.channel(), cause);
+                httpProxyServerConfig.getHttpProxyExceptionHandle().backendFailed(clientChannel, ctx0.channel(), cause);
             }
         });
     }

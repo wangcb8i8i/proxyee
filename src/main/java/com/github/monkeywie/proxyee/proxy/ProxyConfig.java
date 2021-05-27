@@ -1,6 +1,7 @@
 package com.github.monkeywie.proxyee.proxy;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 public class ProxyConfig implements Serializable {
 
@@ -108,11 +109,6 @@ public class ProxyConfig implements Serializable {
 
     @Override
     public int hashCode() {
-        int result = proxyType != null ? proxyType.hashCode() : 0;
-        result = 31 * result + (host != null ? host.hashCode() : 0);
-        result = 31 * result + port;
-        result = 31 * result + (user != null ? user.hashCode() : 0);
-        result = 31 * result + (pwd != null ? pwd.hashCode() : 0);
-        return result;
+        return Objects.hash(proxyType, host, user, pwd);
     }
 }

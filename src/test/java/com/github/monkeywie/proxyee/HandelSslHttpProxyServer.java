@@ -7,7 +7,7 @@ public class HandelSslHttpProxyServer {
 
     public static void main(String[] args) throws Exception {
         HttpProxyServerConfig config = new HttpProxyServerConfig();
-        config.setHandleSsl(true);
+        config.setSslSupported(true);
         new HttpProxyServer()
                 .serverConfig(config)
                 .start(9999);

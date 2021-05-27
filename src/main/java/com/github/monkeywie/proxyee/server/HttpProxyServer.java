@@ -6,7 +6,6 @@ import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpTunnelIntercept;
 import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipelineInitializer;
-import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -14,6 +13,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -29,37 +29,14 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.CountDownLatch;
 
-@Accessors(fluent = true)
 public class HttpProxyServer {
 
     private final static InternalLogger log = InternalLoggerFactory.getInstance(HttpProxyServer.class);
 
-
     @Setter
-    private HttpProxyCACertFactory caCertFactory;
-
-    @Setter
+    @Accessors(fluent = true)
     private HttpProxyServerConfig serverConfig;
-
-    @Setter
-    private ProxyInterceptPipelineInitializer proxyInterceptInitializer;
-
-    @Setter
-    private HttpTunnelIntercept tunnelIntercept = new HttpTunnelIntercept() {
-        @Override
-        public void handle(RequestProto requestProto) {
-            log.trace("tunneled {}", requestProto);
-        }
-    };
-
-    @Setter
-    private HttpProxyExceptionHandle httpProxyExceptionHandle;
-
-    @Setter
-    private ProxyConfig proxyConfig;
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
@@ -68,44 +45,59 @@ public class HttpProxyServer {
         if (serverConfig == null) {
             serverConfig = new HttpProxyServerConfig();
         }
-        serverConfig.setProxyLoopGroup(new NioEventLoopGroup(serverConfig.getProxyGroupThreads()));
-
-        if (serverConfig.isHandleSsl()) {
+        if (serverConfig.isSslSupported()) {
             try {
                 serverConfig.setClientSslCtx(
                         SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE)
                                 .build());
                 ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-                X509Certificate caCert;
-                PrivateKey caPriKey;
-                if (caCertFactory == null) {
-                    caCert = CertUtil.loadCert(classLoader.getResourceAsStream("ca.crt"));
-                    caPriKey = CertUtil.loadPriKey(classLoader.getResourceAsStream("ca_private.der"));
-                } else {
-                    caCert = caCertFactory.getCACert();
-                    caPriKey = caCertFactory.getCAPriKey();
-                }
+
+                //设置根证书以及对应私钥生成器
+                serverConfig.setCaCertFactory(new HttpProxyCACertFactory() {
+
+                    private X509Certificate caCert;
+                    private PrivateKey caPriKey;
+
+                    {
+                        caCert = CertUtil.loadCert(classLoader.getResourceAsStream("ca.crt"));
+                        caPriKey = CertUtil.loadPriKey(classLoader.getResourceAsStream("ca_private.der"));
+                    }
+
+                    @Override
+                    public X509Certificate getCACert() throws Exception {
+                        return caCert;
+                    }
+
+                    @Override
+                    public PrivateKey getCAPriKey() throws Exception {
+                        return caPriKey;
+                    }
+                });
+
                 //读取CA证书使用者信息
-                serverConfig.setIssuer(CertUtil.getSubject(caCert));
+                serverConfig.setIssuer(CertUtil.getSubject(serverConfig.getCaCertFactory().getCACert()));
                 //读取CA证书有效时段(server证书有效期超出CA证书的，在手机上会提示证书不安全)
-                serverConfig.setCaNotBefore(caCert.getNotBefore());
-                serverConfig.setCaNotAfter(caCert.getNotAfter());
+                serverConfig.setCaNotBefore(serverConfig.getCaCertFactory().getCACert().getNotBefore());
+                serverConfig.setCaNotAfter(serverConfig.getCaCertFactory().getCACert().getNotAfter());
                 //CA私钥用于给动态生成的网站SSL证书签证
-                serverConfig.setCaPriKey(caPriKey);
+                serverConfig.setCaPriKey(serverConfig.getCaCertFactory().getCAPriKey());
                 //生产一对随机公私钥用于网站SSL证书动态创建
                 KeyPair keyPair = CertUtil.genKeyPair();
                 serverConfig.setServerPriKey(keyPair.getPrivate());
                 serverConfig.setServerPubKey(keyPair.getPublic());
+
+                serverConfig.setTunnelIntercept(new HttpTunnelIntercept() {
+                    @Override
+                    public void handle(RequestProto requestProto) {
+                        log.debug("tunneled {}", requestProto);
+                    }
+                });
+                serverConfig.setProxyInterceptInitializer(new ProxyInterceptPipelineInitializer());
+                serverConfig.setHttpProxyExceptionHandle(new HttpProxyExceptionHandle());
             } catch (Exception e) {
-                serverConfig.setHandleSsl(false);
+                serverConfig.setSslSupported(false);
                 log.warn("SSL init fail,cause:" + e.getMessage());
             }
-        }
-        if (proxyInterceptInitializer == null) {
-            proxyInterceptInitializer = new ProxyInterceptPipelineInitializer();
-        }
-        if (httpProxyExceptionHandle == null) {
-            httpProxyExceptionHandle = new HttpProxyExceptionHandle();
         }
     }
 
@@ -116,31 +108,30 @@ public class HttpProxyServer {
     public void start(String ip, int port) {
         try {
             ChannelFuture channelFuture = doBind(ip, port);
-            CountDownLatch latch = new CountDownLatch(1);
             channelFuture.addListener(future -> {
-                if (future.cause() != null) {
-                    httpProxyExceptionHandle.startCatch(future.cause());
-                }
                 if (future.isSuccess()) {
                     log.debug("proxy server is listening on {}:{}",
                             Objects.toString(ip, "localhost"), port);
+                    addShutdownHook();
+                } else {
+                    serverConfig.getHttpProxyExceptionHandle().bootstrapFailed(future.cause());
+                    close();
                 }
-                latch.countDown();
             });
-            latch.await();
+            channelFuture.awaitUninterruptibly();
             channelFuture.channel().closeFuture().sync();
         } catch (Exception e) {
-            httpProxyExceptionHandle.startCatch(e);
+            serverConfig.getHttpProxyExceptionHandle().bootstrapFailed(e);
         } finally {
             close();
         }
     }
 
-    public CompletionStage<Void> startAsync(int port) {
+    public CompletableFuture<Void> startAsync(int port) {
         return startAsync(null, port);
     }
 
-    public CompletionStage<Void> startAsync(String ip, int port) {
+    public CompletableFuture<Void> startAsync(String ip, int port) {
         ChannelFuture channelFuture = doBind(ip, port);
 
         CompletableFuture<Void> future = new CompletableFuture<>();
@@ -148,6 +139,8 @@ public class HttpProxyServer {
             if (start.isSuccess()) {
                 future.complete(null);
                 addShutdownHook();
+                log.debug("proxy server is listening on {}:{}",
+                        Objects.toString(ip, "localhost"), port);
             } else {
                 future.completeExceptionally(start.cause());
                 close();
@@ -158,9 +151,9 @@ public class HttpProxyServer {
 
     private ChannelFuture doBind(String ip, int port) {
         init();
+        ServerBootstrap bootstrap = new ServerBootstrap();
         bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
         workerGroup = new NioEventLoopGroup(serverConfig.getWorkerGroupThreads());
-        ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
 //                .option(ChannelOption.SO_BACKLOG, 100)
@@ -171,9 +164,9 @@ public class HttpProxyServer {
                     protected void initChannel(Channel ch) throws Exception {
                         ch.pipeline().addFirst(new LoggingHandler());
                         ch.pipeline().addLast("httpCodec", new HttpServerCodec());
-                        ch.pipeline().addLast("serverHandle",
-                                new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, tunnelIntercept, proxyConfig,
-                                        httpProxyExceptionHandle));
+//                        ch.pipeline().addLast("compressor", new HttpContentCompressor());
+                        ch.pipeline().addLast("aggregator", new HttpObjectAggregator(1024 * 1024 * 10));
+                        ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(serverConfig));
                     }
                 });
 
@@ -184,10 +177,6 @@ public class HttpProxyServer {
      * 释放资源
      */
     public void close() {
-        EventLoopGroup eventLoopGroup = serverConfig.getProxyLoopGroup();
-        if (!(eventLoopGroup.isShutdown() || eventLoopGroup.isShuttingDown())) {
-            eventLoopGroup.shutdownGracefully();
-        }
         if (!(bossGroup.isShutdown() || bossGroup.isShuttingDown())) {
             bossGroup.shutdownGracefully();
         }

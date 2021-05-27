@@ -52,6 +52,6 @@ public class HttpProxyClientHandler extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         ctx.channel().close();
         clientChannel.close();
-        httpProxyExceptionHandle.afterCatch(clientChannel, ctx.channel(), cause);
+        httpProxyExceptionHandle.backendFailed(clientChannel, ctx.channel(), cause);
     }
 }

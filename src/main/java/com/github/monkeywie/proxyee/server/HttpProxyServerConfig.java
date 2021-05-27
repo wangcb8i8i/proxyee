@@ -1,8 +1,11 @@
 package com.github.monkeywie.proxyee.server;
 
+import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
+import com.github.monkeywie.proxyee.intercept.HttpTunnelIntercept;
+import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipelineInitializer;
+import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import com.github.monkeywie.proxyee.server.accept.HttpProxyAcceptHandler;
 import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
-import io.netty.channel.EventLoopGroup;
 import io.netty.handler.ssl.SslContext;
 import io.netty.resolver.AddressResolverGroup;
 import io.netty.resolver.DefaultAddressResolverGroup;
@@ -25,12 +28,16 @@ public class HttpProxyServerConfig {
     private PrivateKey caPriKey;        //为代理站点自动签发证书的私钥
     private PrivateKey serverPriKey;    //为代理站点动态生成证书的私钥
     private PublicKey serverPubKey;     //为代理站点动态生成证书的公钥
-    private EventLoopGroup proxyLoopGroup;
     private int bossGroupThreads;
     private int workerGroupThreads;
     private int proxyGroupThreads;
-    private boolean handleSsl;
+    private boolean sslSupported;
+    private ProxyConfig proxyConfig;
     private HttpProxyAcceptHandler httpProxyAcceptHandler;
-    private HttpProxyAuthenticationProvider authenticationProvider;
+    private ProxyInterceptPipelineInitializer proxyInterceptInitializer;
+    private HttpProxyCACertFactory caCertFactory;
+    private HttpTunnelIntercept tunnelIntercept ;
+    private HttpProxyAuthenticationProvider httpProxyAuthenticationProvider;
+    private HttpProxyExceptionHandle httpProxyExceptionHandle;
     private final AddressResolverGroup<? extends SocketAddress> nameResolver =DefaultAddressResolverGroup.INSTANCE;
 }

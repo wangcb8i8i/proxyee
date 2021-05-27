@@ -22,10 +22,8 @@ public class InterceptForwardHttpProxyServer {
 
     public static void main(String[] args) throws Exception {
         HttpProxyServerConfig config = new HttpProxyServerConfig();
-        config.setHandleSsl(true);
-        new HttpProxyServer()
-                .serverConfig(config)
-                .proxyInterceptInitializer(new ProxyInterceptPipelineInitializer() {
+        config.setSslSupported(true)
+                .setProxyInterceptInitializer(new ProxyInterceptPipelineInitializer() {
                     @Override
                     public void init(ProxyInterceptPipeline pipeline) {
                         pipeline.addLast(new ProxyInterceptHandler() {
@@ -43,18 +41,20 @@ public class InterceptForwardHttpProxyServer {
                         });
                     }
                 })
-                .httpProxyExceptionHandle(new HttpProxyExceptionHandle() {
+                .setHttpProxyExceptionHandle(new HttpProxyExceptionHandle() {
                     @Override
-                    public void beforeCatch(Channel clientChannel, Throwable cause) throws Exception {
+                    public void frontendFailed(Channel clientChannel, Throwable cause)  {
                         cause.printStackTrace();
                     }
 
                     @Override
-                    public void afterCatch(Channel clientChannel, Channel proxyChannel, Throwable cause)
-                            throws Exception {
+                    public void backendFailed(Channel clientChannel, Channel proxyChannel, Throwable cause)
+                           {
                         cause.printStackTrace();
                     }
-                })
+                });
+        new HttpProxyServer()
+                .serverConfig(config)
                 .start(9999);
     }
 }

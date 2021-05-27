@@ -4,14 +4,19 @@ import io.netty.channel.Channel;
 
 public class HttpProxyExceptionHandle {
 
-    public void startCatch(Throwable e) {
+    public void bootstrapFailed(Throwable e) {
         e.printStackTrace();
     }
 
-    public void beforeCatch(Channel clientChannel, Throwable cause) throws Exception {
+    public void frontendFailed(Channel clientChannel, Throwable cause) {
+        new Exception(clientChannel.remoteAddress() + " <-> " + clientChannel.localAddress(), cause)
+                .printStackTrace();
     }
 
-    public void afterCatch(Channel clientChannel, Channel proxyChannel, Throwable cause)
-            throws Exception {
+
+    public void backendFailed(Channel clientChannel, Channel proxyChannel, Throwable cause) {
+        String s = String.format("%s <-> %s <-> %s", clientChannel.remoteAddress(), clientChannel.localAddress()
+                , proxyChannel.remoteAddress());
+        new Exception(s, cause).printStackTrace();
     }
 }
