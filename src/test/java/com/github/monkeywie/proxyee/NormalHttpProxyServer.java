@@ -5,10 +5,16 @@ import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipeline;
 import com.github.monkeywie.proxyee.intercept.ProxyInterceptPipelineInitializer;
 import com.github.monkeywie.proxyee.intercept.common.CertDownloadResponder;
 import com.github.monkeywie.proxyee.intercept.common.SelfRequestInterceptHandler;
+import com.github.monkeywie.proxyee.intercept.common.SelfRequestResponder;
 import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
+import com.github.monkeywie.proxyee.server.RequestProto;
 import io.netty.channel.Channel;
-import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpResponse;
+
+import java.util.List;
 
 public class NormalHttpProxyServer {
 
@@ -21,29 +27,24 @@ public class NormalHttpProxyServer {
                 .setProxyInterceptInitializer(new ProxyInterceptPipelineInitializer() {
                     @Override
                     public void init(ProxyInterceptPipeline proxyInterceptPipeline) {
-                        proxyInterceptPipeline.addLast(new SelfRequestInterceptHandler()
-                                .addRequestResponder(new CertDownloadResponder())
-                                .addRequestResponder(r -> {
-                                    if (r.uri().matches("asdf")) {
-
-                                        return null;
+                        proxyInterceptPipeline.addLast(
+                                new SelfRequestInterceptHandler() {
+                                    @Override
+                                    protected void configureRequestResponder(List<SelfRequestResponder> requestResponderList) {
+                                        requestResponderList.add(new CertDownloadResponder());
                                     }
-                                    return null;
                                 })
-
-                        )
-
                                 .addFirst(new ProxyInterceptHandler() {
 
                                     @Override
                                     public void onRequest(Channel clientChannel, HttpRequest httpRequest, ProxyInterceptPipeline proxyInterceptPipeline) throws Exception {
                                         System.out.println(httpRequest.uri() + " : " + httpRequest.getClass());
-//                                RequestProto requestProto = proxyInterceptPipeline.getRequestProto();
-//                                if (requestProto.getHost().contains("www.baidu.com")) {
-//                                    requestProto.setHost("192.168.29.150");
-//                                    requestProto.setPort(8891);
-//                                    httpRequest.setUri("/index.html");
-//                                }
+                                        RequestProto requestProto = proxyInterceptPipeline.getRequestProto();
+                                        if (requestProto.getHost().contains("www.baidu.com")) {
+                                            requestProto.setHost("192.168.29.150");
+                                            requestProto.setPort(8891);
+                                            httpRequest.setUri("/index.html");
+                                        }
                                         ProxyInterceptHandler.super.onRequest(clientChannel, httpRequest, proxyInterceptPipeline);
                                     }
 

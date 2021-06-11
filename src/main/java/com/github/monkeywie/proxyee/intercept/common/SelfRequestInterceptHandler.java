@@ -6,11 +6,17 @@ import com.github.monkeywie.proxyee.server.RequestProto;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.*;
+import lombok.extern.slf4j.Slf4j;
 
+import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
+@Slf4j
 public class SelfRequestInterceptHandler implements ProxyInterceptHandler {
+
+    public SelfRequestInterceptHandler() {
+        this.configureRequestResponder(this.requestResponders);
+    }
 
     @Override
     public void onRequest(Channel clientChannel, HttpRequest httpRequest, ProxyInterceptPipeline proxyInterceptPipeline) throws Exception {
@@ -23,27 +29,30 @@ public class SelfRequestInterceptHandler implements ProxyInterceptHandler {
         }
     }
 
-    protected void handleSelfRequest(Channel clientChannel, HttpRequest httpRequest) throws Exception {
+    protected void handleSelfRequest(Channel clientChannel, HttpRequest httpRequest) {
         FullHttpResponse fullHttpResponse = null;
-        for (SelfRequestResponder requestResponder : this.requestResponders) {
-            fullHttpResponse = requestResponder.respond(httpRequest);
-            if (fullHttpResponse != null) {
-                break;
+        try {
+            for (SelfRequestResponder requestResponder : this.requestResponders) {
+                fullHttpResponse = requestResponder.respond(httpRequest);
+                if (fullHttpResponse != null) {
+                    break;
+                }
             }
+        } catch (Exception e) {
+            log.error("failed respond {} {}", httpRequest.method().name(), httpRequest.uri(), e);
+            fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
         }
         if (fullHttpResponse == null) {
-            fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
-            fullHttpResponse.content().writeBytes("not found".getBytes());
+            fullHttpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+            fullHttpResponse.content().writeBytes("Forbidden".getBytes());
         }
         clientChannel.writeAndFlush(fullHttpResponse);
     }
 
 
-    private List<SelfRequestResponder> requestResponders = new CopyOnWriteArrayList<>();
+    private List<SelfRequestResponder> requestResponders = new LinkedList<>();
 
-    public SelfRequestInterceptHandler addRequestResponder(SelfRequestResponder requestResponder) {
-        this.requestResponders.add(requestResponder);
-        return this;
+    protected void configureRequestResponder(final List<SelfRequestResponder> requestResponderList) {
+
     }
-
 }
